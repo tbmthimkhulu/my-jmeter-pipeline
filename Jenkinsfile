@@ -2,17 +2,14 @@ pipeline {
     agent any
 
     environment {
-        JMETER_HOME = 'C:\\apache-jmeter-5.6.3'   // adjust if needed
-        REPORT_DIR = 'report'
-        RESULT_FILE = 'result.jtl'
-        PORT = '9090'
+        JMETER_HOME = 'C:\\apache-jmeter-5.6.3\\bin'
     }
 
     stages {
 
         stage('Checkout Code') {
             steps {
-                echo 'Using code from GitHub (already checked out by Jenkins)'
+                echo 'Using code already checked out by Jenkins'
             }
         }
 
@@ -25,7 +22,7 @@ pipeline {
 
         stage('Start Server') {
             steps {
-                echo "Starting server on port ${PORT}..."
+                echo 'Starting server on port 9090...'
                 bat 'start /B java -cp src SimpleServer'
             }
         }
@@ -33,35 +30,38 @@ pipeline {
         stage('Wait for Server') {
             steps {
                 echo 'Waiting for server to be ready...'
-                timeout(time: 1, unit: 'MINUTES') {
+                timeout(time: 60, unit: 'SECONDS') {
                     waitUntil {
                         script {
-                            def response = bat(
-                                script: "curl -s http://localhost:${PORT}/api/hello",
-                                returnStdout: true
-                            ).trim()
-                            return response.contains("Hello")
+                            def status = bat(
+                                script: 'powershell -Command "try { (Invoke-WebRequest http://localhost:9090/api/hello).StatusCode } catch { exit 1 }"',
+                                returnStatus: true
+                            )
+                            return (status == 0)
                         }
                     }
                 }
             }
         }
 
+        stage('Clean Previous Results') {
+            steps {
+                echo 'Cleaning old results...'
+                bat 'IF EXIST report rmdir /s /q report'
+                bat 'IF EXIST result.jtl del result.jtl'
+            }
+        }
+
         stage('Run JMeter Test') {
             steps {
                 echo 'Running JMeter test...'
-                bat """
-                IF EXIST %REPORT_DIR% rmdir /s /q %REPORT_DIR%
-                IF EXIST %RESULT_FILE% del %RESULT_FILE%
-
-                ${JMETER_HOME}\\bin\\jmeter -n -t Hello.jmx -l %RESULT_FILE% -e -o %REPORT_DIR%
-                """
+                bat "\"%JMETER_HOME%\\jmeter.bat\" -n -t Hello.jmx -l result.jtl -e -o report"
             }
         }
 
         stage('Archive Report') {
             steps {
-                echo 'Archiving JMeter HTML report...'
+                echo 'Archiving HTML report...'
                 archiveArtifacts artifacts: 'report/**', fingerprint: true
             }
         }
@@ -69,7 +69,7 @@ pipeline {
 
     post {
         always {
-            echo 'Cleaning up... Stopping Java server'
+            echo 'Stopping Java server...'
             bat 'taskkill /F /IM java.exe || exit 0'
         }
 
