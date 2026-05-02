@@ -1,6 +1,13 @@
 pipeline {
     agent any
 
+    environment {
+        JMETER_HOME = 'C:\\apache-jmeter-5.6.3'   // adjust if needed
+        REPORT_DIR = 'report'
+        RESULT_FILE = 'result.jtl'
+        PORT = '9090'
+    }
+
     stages {
 
         stage('Checkout Code') {
@@ -18,7 +25,7 @@ pipeline {
 
         stage('Start Server') {
             steps {
-                echo 'Starting server on port 9090...'
+                echo "Starting server on port ${PORT}..."
                 bat 'start /B java -cp src SimpleServer'
             }
         }
@@ -26,14 +33,14 @@ pipeline {
         stage('Wait for Server') {
             steps {
                 echo 'Waiting for server to be ready...'
-                timeout(time: 60, unit: 'SECONDS') {
+                timeout(time: 1, unit: 'MINUTES') {
                     waitUntil {
                         script {
-                            def status = bat(
-                                script: 'curl -s http://localhost:9090/api/hello',
-                                returnStatus: true
-                            )
-                            return (status == 0)
+                            def response = bat(
+                                script: "curl -s http://localhost:${PORT}/api/hello",
+                                returnStdout: true
+                            ).trim()
+                            return response.contains("Hello")
                         }
                     }
                 }
@@ -43,13 +50,18 @@ pipeline {
         stage('Run JMeter Test') {
             steps {
                 echo 'Running JMeter test...'
-                bat 'jmeter -n -t Hello.jmx -l result.jtl -e -o report'
+                bat """
+                IF EXIST %REPORT_DIR% rmdir /s /q %REPORT_DIR%
+                IF EXIST %RESULT_FILE% del %RESULT_FILE%
+
+                ${JMETER_HOME}\\bin\\jmeter -n -t Hello.jmx -l %RESULT_FILE% -e -o %REPORT_DIR%
+                """
             }
         }
 
         stage('Archive Report') {
             steps {
-                echo 'Archiving HTML report...'
+                echo 'Archiving JMeter HTML report...'
                 archiveArtifacts artifacts: 'report/**', fingerprint: true
             }
         }
@@ -57,11 +69,14 @@ pipeline {
 
     post {
         always {
-            echo 'Pipeline finished.'
+            echo 'Cleaning up... Stopping Java server'
+            bat 'taskkill /F /IM java.exe || exit 0'
         }
+
         success {
             echo 'SUCCESS: Pipeline executed successfully!'
         }
+
         failure {
             echo 'FAILURE: Check logs above.'
         }
