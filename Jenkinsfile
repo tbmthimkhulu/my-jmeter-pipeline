@@ -1,10 +1,6 @@
 pipeline {
     agent any
 
-    environment {
-        JMETER_HOME = 'C:\\apache-jmeter-5.6.3\\bin'
-    }
-
     stages {
 
         stage('Checkout Code') {
@@ -55,7 +51,7 @@ pipeline {
         stage('Run JMeter Test') {
             steps {
                 echo 'Running JMeter test...'
-                bat "\"%JMETER_HOME%\\jmeter.bat\" -n -t Hello.jmx -l result.jtl -e -o report"
+                bat "\"C:\\Users\\user\\OneDrive\\Softwae\\apache-jmeter-5.6.3\\apache-jmeter-5.6.3\\bin\\jmeter.bat\" -n -t Hello.jmx -l result.jtl -e -o report"
             }
         }
 
