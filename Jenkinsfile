@@ -19,7 +19,7 @@ pipeline {
         stage('Start Server') {
             steps {
                 echo 'Starting server on port 9090...'
-                bat 'start /B java -cp src SimpleServer'
+                bat 'start "" cmd /c "java -cp src SimpleServer"'
             }
         }
 
@@ -65,8 +65,7 @@ pipeline {
 
     post {
         always {
-            echo 'Stopping Java server...'
-            bat 'taskkill /F /IM java.exe || exit 0'
+            echo 'Pipeline finished. (Server not force-killed to keep Jenkins alive)'
         }
 
         success {
